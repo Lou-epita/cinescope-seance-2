@@ -16,6 +16,9 @@ export default function App() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRefs = useRef(new Map<number, HTMLButtonElement>());
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [confirmation, setConfirmation] = useState<{ filmId: number; message: string } | null>(null);
+  const toastRef = useRef<HTMLParagraphElement>(null);
+  const isConfirming = useRef(false);
   const filteredFilms = useMemo(
     () => films.filter((film) => film.title.toLowerCase().includes(query.toLowerCase())),
     [query],
@@ -27,9 +30,32 @@ export default function App() {
 
   const closeDialog = () => dialogRef.current?.close();
   const handleDialogClose = () => {
-    if (selectedId !== null) triggerRefs.current.get(selectedId)?.focus();
+    if (isConfirming.current) isConfirming.current = false;
+    else if (selectedId !== null) triggerRefs.current.get(selectedId)?.focus();
     setSelectedId(null);
   };
+
+  const confirmBooking = () => {
+    if (!selectedFilm) return;
+    isConfirming.current = true;
+    setConfirmation({
+      filmId: selectedFilm.id,
+      message: `Réservation confirmée pour ${selectedFilm.title}, séance de ${selectedFilm.time}.`,
+    });
+    closeDialog();
+  };
+
+  useEffect(() => {
+    if (!confirmation) return;
+    toastRef.current?.focus();
+    const timer = window.setTimeout(() => {
+      if (toastRef.current?.contains(document.activeElement)) {
+        triggerRefs.current.get(confirmation.filmId)?.focus();
+      }
+      setConfirmation(null);
+    }, 6000);
+    return () => window.clearTimeout(timer);
+  }, [confirmation]);
 
   const toggleFavorite = (id: number) => {
     setFavorites((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
@@ -101,12 +127,20 @@ export default function App() {
               <p className={"availability " + (selectedFilm.available ? "available" : "unavailable")}>
                 {selectedFilm.available ? "Places disponibles" : "Séance complète"}
               </p>
-              <p>Consultez la séance et sa disponibilité avant de revenir au programme.</p>
-              <button className="dialog-action" type="button" onClick={closeDialog}>Revenir aux films</button>
+              <p>Consultez la séance et sa disponibilité avant de valider votre réservation.</p>
+              <div className="dialog-actions">
+                {selectedFilm.available && (
+                  <button className="dialog-action" type="button" onClick={confirmBooking}>Valider la réservation</button>
+                )}
+                <button className="dialog-action secondary" type="button" onClick={closeDialog}>Revenir aux films</button>
+              </div>
             </>
           )}
         </dialog>
       </main>
+      {confirmation && (
+        <p ref={toastRef} className="toast" tabIndex={-1}>{confirmation.message}</p>
+      )}
     </>
   );
 }
