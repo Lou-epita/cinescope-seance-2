@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import posterAube from "./assets/aube.svg";
 import posterMemoire from "./assets/memoire.svg";
 import posterOrbite from "./assets/orbite.svg";
@@ -11,13 +11,26 @@ const films = [
 
 export default function App() {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
-  const selectedFilm = films.find((film) => film.title === selected);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const selectedFilm = films.find((film) => film.id === selectedId);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRefs = useRef(new Map<number, HTMLButtonElement>());
   const [favorites, setFavorites] = useState<number[]>([]);
   const filteredFilms = useMemo(
     () => films.filter((film) => film.title.toLowerCase().includes(query.toLowerCase())),
     [query],
   );
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (selectedFilm && dialog && !dialog.open) dialog.showModal();
+  }, [selectedFilm]);
+
+  const closeDialog = () => dialogRef.current?.close();
+  const handleDialogClose = () => {
+    if (selectedId !== null) triggerRefs.current.get(selectedId)?.focus();
+    setSelectedId(null);
+  };
+
   const toggleFavorite = (id: number) => {
     setFavorites((items) => items.includes(id) ? items.filter((item) => item !== id) : [...items, id]);
   };
@@ -56,7 +69,9 @@ export default function App() {
                     <h3>{film.title}</h3>
                     <p>{film.genre} · {film.time}</p>
                     <div className="actions">
-                      <div className="booking-trigger fake-button" onClick={() => setSelected(film.title)}>Réserver {film.title}</div>
+                      <button type="button" className="booking-trigger" aria-haspopup="dialog"
+                        ref={(node) => { if (node) triggerRefs.current.set(film.id, node); else triggerRefs.current.delete(film.id); }}
+                        onClick={() => setSelectedId(film.id)}>Réserver {film.title}</button>
                       <button type="button" className="favorite" aria-pressed={isFavorite}
                         aria-label={"Favori : " + film.title} onClick={() => toggleFavorite(film.id)}>
                         <span aria-hidden="true">{isFavorite ? "★" : "☆"}</span>
@@ -73,22 +88,24 @@ export default function App() {
           <h2 id="infos-title">Informations pratiques</h2>
           <p>Le cinéma ouvre trente minutes avant la première séance.</p>
         </section>
-        {selectedFilm && (
-          <div className="backdrop">
-            <div className="modal">
+        <dialog ref={dialogRef} aria-labelledby="booking-title" onClose={handleDialogClose}>
+          {selectedFilm && (
+            <>
               <div className="dialog-heading">
-                <h2>Réserver {selected}</h2>
-                <span className="close" onClick={() => setSelected(null)}>×</span>
+                <h2 id="booking-title">Réserver {selectedFilm.title}</h2>
+                <button type="button" className="close" aria-label="Fermer" onClick={closeDialog}>
+                  <span aria-hidden="true">×</span>
+                </button>
               </div>
               <p>{selectedFilm.genre} · Séance de {selectedFilm.time}</p>
               <p className={"availability " + (selectedFilm.available ? "available" : "unavailable")}>
                 {selectedFilm.available ? "Places disponibles" : "Séance complète"}
               </p>
               <p>Consultez la séance et sa disponibilité avant de revenir au programme.</p>
-              <button className="dialog-action" type="button" onClick={() => setSelected(null)}>Revenir aux films</button>
-            </div>
-          </div>
-        )}
+              <button className="dialog-action" type="button" onClick={closeDialog}>Revenir aux films</button>
+            </>
+          )}
+        </dialog>
       </main>
     </>
   );
